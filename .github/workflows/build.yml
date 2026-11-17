@@ -12,14 +12,153 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup JDK
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android components
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Create Android project
+        run: |
+          mkdir -p app/src/main/java/com/agung/pbmacro
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "PBMacro"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.agung.pbmacro'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.agung.pbmacro'
+                  minSdk 23
+                  targetSdk 28
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:theme="@android:style/Theme.Material.NoActionBar"
+                  android:label="PB Macro Controller"
+                  android:allowBackup="false">
+                  <activity
+                      android:name="com.agung.pbmacro.MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/agung/pbmacro/MainActivity.kt <<'EOF'
+          package com.agung.pbmacro
+
+          import android.app.Activity
+          import android.os.Bundle
+          import android.graphics.Color
+          import android.view.Gravity
+          import android.widget.*
+
+          class MainActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val layout = LinearLayout(this)
+                  layout.orientation = LinearLayout.VERTICAL
+                  layout.gravity = Gravity.CENTER
+                  layout.setPadding(28, 30, 28, 30)
+                  layout.setBackgroundColor(Color.rgb(18, 20, 29))
+
+                  fun text(value: String, size: Float): TextView {
+                      return TextView(this).apply {
+                          text = value
+                          textSize = size
+                          setTextColor(Color.WHITE)
+                          gravity = Gravity.CENTER
+                      }
+                  }
+
+                  val title = text("PB MACRO CONTROLLER", 24f)
+                  layout.addView(title)
+
+                  val subtitle = text("Point Blank Mobile", 16f)
+                  layout.addView(subtitle)
+
+                  val delay = EditText(this)
+                  delay.hint = "Delay (ms), contoh: 300"
+                  delay.setText("300")
+                  delay.setTextColor(Color.WHITE)
+                  delay.setHintTextColor(Color.GRAY)
+                  layout.addView(delay)
+
+                  val status = text("Status: STOPPED", 18f)
+                  layout.addView(status)
+
+                  val start = Button(this)
+                  start.text = "START TEST"
+                  layout.addView(start)
+
+                  val stop = Button(this)
+                  stop.text = "STOP"
+                  layout.addView(stop)
+
+                  start.setOnClickListener {
+                      val value = delay.text.toString().toLongOrNull()
+                      status.text = if (value != null && value > 0) {
+                          "Status: TEST MODE - ${value}ms"
+                      } else {
+                          "Masukkan delay yang valid"
+                      }
+                  }
+
+                  stop.setOnClickListener {
+                      status.text = "Status: STOPPED"
+                  }
+
+                  setContentView(layout)
+              }
+          }
+          EOF
 
       - name: Build APK
         run: gradle assembleDebug
@@ -28,5 +167,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PBMacro-APK
-          path: app/build/outputs/apk/debug/*.apk
-          
+          path: app/build/outputs/apk/debug/app-debug.apk
